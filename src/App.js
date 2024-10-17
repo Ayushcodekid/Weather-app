@@ -4,7 +4,6 @@ import AlertSystem from './AlertSystem';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import './App.css'; // Import the CSS file
 import CityTabs from './CityTabs'; // Import the CityTabs component
-import 'bootstrap/dist/css/bootstrap.min.css';
 
 const cities = ['Delhi', 'Mumbai', 'Chennai', 'Bangalore', 'Kolkata', 'Hyderabad'];
 
@@ -18,33 +17,43 @@ const App = () => {
   const kelvinToCelsius = (kelvin) => (kelvin - 273.15).toFixed(2);
 
   const fetchWeatherData = async () => {
-    const promises = cities.map(city => 
-      axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}`)
-    );
+    try {
+      const promises = cities.map(city => 
+        axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}`)
+      );
 
-    const results = await Promise.all(promises);
-    const formattedData = results.map(res => {
-      const data = res.data;
-      return {
-        city: data.name,
-        temp: kelvinToCelsius(data.main.temp),
-        feels_like: kelvinToCelsius(data.main.feels_like),
-        condition: data.weather[0].main,
-        time: new Date(data.dt * 1000).toLocaleString()
-      };
-    });
+      const results = await Promise.all(promises);
+      const formattedData = results.map(res => {
+        const data = res.data;
+        return {
+          city: data.name,
+          temp: kelvinToCelsius(data.main.temp),
+          feels_like: kelvinToCelsius(data.main.feels_like),
+          condition: data.weather[0].main,
+          time: new Date(data.dt * 1000).toLocaleString()
+        };
+      });
 
-    setWeatherData(formattedData);
-    processDailySummary(formattedData);
+      setWeatherData(formattedData);
+      processDailySummary(formattedData);
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+      // Handle errors (e.g., show alert, log error, etc.)
+    }
   };
 
   const processDailySummary = (data) => {
     const today = new Date().toLocaleDateString();
-    let summary = dailySummary[today] || { temps: [], conditions: [] }; // Initialize if not present
+    
+    // Initialize the summary for today if it doesn't exist
+    let summary = dailySummary[today] || { temps: [], conditions: [] };
 
+    // Check and push temperatures and conditions into the summary
     data.forEach(item => {
-      summary.temps.push(parseFloat(item.temp));
-      summary.conditions.push(item.condition);
+      if (item.temp && item.condition) { // Ensure temp and condition are valid
+        summary.temps.push(parseFloat(item.temp));
+        summary.conditions.push(item.condition);
+      }
     });
 
     if (summary.temps.length > 0) {
@@ -53,6 +62,7 @@ const App = () => {
       const minTemp = Math.min(...summary.temps).toFixed(2);
       const dominantCondition = getDominantCondition(summary.conditions);
 
+      // Update the daily summary
       const newSummary = {
         ...dailySummary,
         [today]: {
@@ -69,10 +79,11 @@ const App = () => {
   };
 
   const getDominantCondition = (conditions) => {
-    return conditions.sort((a, b) =>
-      conditions.filter(v => v === a).length
-      - conditions.filter(v => v === b).length
-    ).pop();
+    const frequency = conditions.reduce((acc, condition) => {
+      acc[condition] = (acc[condition] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.keys(frequency).reduce((a, b) => (frequency[a] > frequency[b] ? a : b));
   };
 
   useEffect(() => {
@@ -89,7 +100,7 @@ const App = () => {
   return (
     <div className="App">
       <h1>Real-Time Weather Monitoring</h1>
-      <CityTabs weatherData={weatherData} dailySummary={dailySummary} /> {/* Use CityTabs component */}
+      <CityTabs weatherData={weatherData} dailySummary={dailySummary} />
       <AlertSystem data={weatherData} threshold={threshold} setThreshold={setThreshold} />
 
       <h2>Weather Trends</h2>
